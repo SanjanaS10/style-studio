@@ -7,7 +7,8 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "server": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "test:backend": "jest tests"
   },
   "author": "ssb",
   "license": "ISC",
@@ -43,6 +44,7 @@
   },
   "devDependencies": {
     "jest": "^27.5.1",
+    "mongodb-memory-server": "^11.2.0",
     "supertest": "^7.2.2"
   }
 }

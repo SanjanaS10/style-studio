@@ -1,0 +1,100 @@
+ 
+const request = require('supertest');
+const mongoose = require('mongoose');
+const { MongoMemoryServer } = require('mongodb-memory-server');
+
+jest.mock('razorpay', () => {
+    return jest.fn().mockImplementation(() => ({
+        orders: { create: jest.fn() }
+    }));
+});
+
+jest.setTimeout(20000);
+
+let mongoServer;
+
+
+
+beforeAll(async () => {
+    mongoServer = await MongoMemoryServer.create();
+    process.env.MONGO_URI = mongoServer.getUri();
+    process.env.JWT_SECRET = 'test_secret_key';
+
+    app = require('../server');
+
+    await new Promise((resolve) => {
+        if (mongoose.connection.readyState === 1) return resolve();
+        mongoose.connection.once('open', resolve);
+    });
+});
+
+afterAll(async () => {
+    await mongoose.connection.dropDatabase();
+    await mongoose.connection.close();
+    await mongoServer.stop();
+});
+
+describe('POST /signup', () => {
+    it('registers a new user successfully', async () => {
+        const res = await request(app)
+            .post('/signup')
+            .send({ name: 'Test User', email: 'test@example.com', password: 'password123' });
+
+        expect(res.statusCode).toBe(201);
+        expect(res.body.message).toBe('User registered successfully');
+    });
+
+    it('rejects duplicate email registration', async () => {
+        await request(app)
+            .post('/signup')
+            .send({ name: 'Test User', email: 'dup@example.com', password: 'password123' });
+
+        const res = await request(app)
+            .post('/signup')
+            .send({ name: 'Another User', email: 'dup@example.com', password: 'password456' });
+
+        expect(res.statusCode).toBe(400);
+        expect(res.body.message).toMatch(/already registered/i);
+    });
+
+    it('rejects signup with missing fields', async () => {
+        const res = await request(app)
+            .post('/signup')
+            .send({ email: 'incomplete@example.com' });
+
+        expect(res.statusCode).toBe(400);
+    });
+});
+
+describe('POST /login', () => {
+    beforeEach(async () => {
+        await request(app)
+            .post('/signup')
+            .send({ name: 'Login Test', email: 'login@example.com', password: 'correctpassword' });
+    });
+
+    it('logs in successfully with correct credentials', async () => {
+        const res = await request(app)
+            .post('/login')
+            .send({ email: 'login@example.com', password: 'correctpassword' });
+
+        expect(res.statusCode).toBe(200);
+        expect(res.body.token).toBeDefined();
+    });
+
+    it('rejects login with wrong password', async () => {
+        const res = await request(app)
+            .post('/login')
+            .send({ email: 'login@example.com', password: 'wrongpassword' });
+
+        expect(res.statusCode).toBe(401);
+    });
+
+    it('rejects login for non-existent email', async () => {
+        const res = await request(app)
+            .post('/login')
+            .send({ email: 'doesnotexist@example.com', password: 'whatever' });
+
+        expect(res.statusCode).toBe(401);
+    });
+});
