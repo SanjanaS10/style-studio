@@ -8,6 +8,7 @@ const bodyParser = require('body-parser');
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const { body, validationResult } = require('express-validator');
 
 const app = express();
 app.use(cors());
@@ -67,9 +68,20 @@ const authenticateToken = (req, res, next) => {
         return res.status(403).json({ message: 'Invalid or expired token.' });
     }
 };
-
+const validate = (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ message: 'Validation failed', errors: errors.array() });
+    }
+    next();
+};
 // ─── SIGNUP ──────────────────────────────────────────────────────────────────
-app.post('/signup', async (req, res) => {
+app.post('/signup', [
+    body('name').trim().notEmpty().withMessage('Name is required'),
+    body('email').isEmail().withMessage('Valid email is required').normalizeEmail(),
+    body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+], validate, async (req, res) => {
+ 
     const { name, password } = req.body;
 
     if (!req.body.email || !password || !name) {
@@ -99,7 +111,11 @@ app.post('/signup', async (req, res) => {
 });
 
 // ─── LOGIN ───────────────────────────────────────────────────────────────────
-app.post('/login', async (req, res) => {
+app.post('/login', [
+    body('email').isEmail().withMessage('Valid email is required').normalizeEmail(),
+    body('password').notEmpty().withMessage('Password is required'),
+], validate, async (req, res) => {
+ 
     const { password } = req.body;
 
     if (!req.body.email || !password) {
@@ -280,6 +296,13 @@ app.post('/verify-payment', async (req, res) => {
         console.error('Verify payment error:', err);
         res.status(500).json({ success: false, message: 'Order saving failed', error: err.message });
     }
+});
+// ─── CENTRALIZED ERROR HANDLER ────────────────────────────────────────────────
+app.use((err, req, res, next) => {
+    console.error('Unhandled error:', err.stack);
+    res.status(err.status || 500).json({
+        message: err.message || 'Internal server error',
+    });
 });
 
 

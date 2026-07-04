@@ -57,12 +57,30 @@ describe('POST /signup', () => {
         expect(res.body.message).toMatch(/already registered/i);
     });
 
-    it('rejects signup with missing fields', async () => {
+   it('rejects signup with missing fields', async () => {
         const res = await request(app)
             .post('/signup')
             .send({ email: 'incomplete@example.com' });
 
         expect(res.statusCode).toBe(400);
+    });
+
+    it('rejects signup with invalid email format', async () => {
+        const res = await request(app)
+            .post('/signup')
+            .send({ name: 'Test User', email: 'not-an-email', password: 'password123' });
+
+        expect(res.statusCode).toBe(400);
+        expect(res.body.message).toBe('Validation failed');
+    });
+
+    it('rejects signup with short password', async () => {
+        const res = await request(app)
+            .post('/signup')
+            .send({ name: 'Test User', email: 'shortpass@example.com', password: '123' });
+
+        expect(res.statusCode).toBe(400);
+        expect(res.body.message).toBe('Validation failed');
     });
 });
 
