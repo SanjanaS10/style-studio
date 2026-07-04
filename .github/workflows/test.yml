@@ -24,4 +24,5 @@ jobs:
       - name: Run backend tests
         run: npm run test:backend
         env:
+          JWT_REFRESH_SECRET: ci_test_refresh_secret
           JWT_SECRET: ci_test_secret
