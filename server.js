@@ -37,6 +37,7 @@ const userSchema = new mongoose.Schema({
     name: String,
     email: { type: String, unique: true, lowercase: true, trim: true },
     password: String,
+    role: { type: String, enum: ['user', 'admin'], default: 'user' },
     cart: [{ productId: String, name: String, price: String, quantity: Number }]
 });
 const User = mongoose.model('User', userSchema);
@@ -68,6 +69,15 @@ const authenticateToken = (req, res, next) => {
         return res.status(403).json({ message: 'Invalid or expired token.' });
     }
 };
+
+
+const requireRole = (role) => (req, res, next) => {
+    if (req.user.role !== role) {
+        return res.status(403).json({ message: `Access denied. ${role} role required.` });
+    }
+    next();
+};
+
 const validate = (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -137,8 +147,9 @@ app.post('/login', [
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
+       
         const token = jwt.sign(
-            { email: user.email, userId: user._id },
+            { email: user.email, userId: user._id, role: user.role },
             process.env.JWT_SECRET,
             { expiresIn: '1d' }
         );
@@ -295,6 +306,16 @@ app.post('/verify-payment', async (req, res) => {
     } catch (err) {
         console.error('Verify payment error:', err);
         res.status(500).json({ success: false, message: 'Order saving failed', error: err.message });
+    }
+});
+// ─── GET ALL ORDERS (Admin only) ─────────────────────────────────────────────
+app.get('/admin/orders', authenticateToken, requireRole('admin'), async (req, res) => {
+    try {
+        const orders = await Order.find().sort({ orderDate: -1 });
+        res.status(200).json({ orders });
+    } catch (err) {
+        console.error('Get orders error:', err);
+        res.status(500).json({ message: 'Error fetching orders', error: err.message });
     }
 });
 // ─── CENTRALIZED ERROR HANDLER ────────────────────────────────────────────────
