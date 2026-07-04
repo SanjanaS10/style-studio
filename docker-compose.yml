@@ -4,12 +4,14 @@
     ports:
       - "5000:5000"
     environment:
-      - MONGO_URI=mongodb://mongo:27017/stylestudio
+      - MONGO_URI=${MONGO_URI}
       - JWT_SECRET=${JWT_SECRET}
       - RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID}
       - RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET}
+      - REDIS_URL=redis://redis:6379
     depends_on:
       - mongo
+      - redis
 
   mongo:
     image: mongo:7
@@ -17,6 +19,11 @@
       - "27017:27017"
     volumes:
       - mongo-data:/data/db
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
 
 volumes:
   mongo-data:

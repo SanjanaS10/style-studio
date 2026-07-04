@@ -13,6 +13,12 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
+const { createClient } = require('redis');
+
+const redisClient = createClient({ url: process.env.REDIS_URL || 'redis://localhost:6379' });
+redisClient.on('error', (err) => console.error('Redis error:', err));
+redisClient.connect().then(() => console.log('Redis connected'));
+
 mongoose.connect(process.env.MONGO_URI)
     .then(async () => {
         console.log('MongoDB connected');
@@ -127,6 +133,53 @@ app.post('/login', async (req, res) => {
         res.status(500).json({ message: 'Error during login', error: err.message });
     }
 });
+//redis--------------------
+// ─── GET CART (cache-first) ──────────────────────────────────────────────────
+app.get('/cart', authenticateToken, async (req, res) => {
+    const cacheKey = `cart:${req.user.userId}`;
+
+    try {
+        const cached = await redisClient.get(cacheKey);
+        if (cached) {
+            return res.status(200).json({ cart: JSON.parse(cached), source: 'cache' });
+        }
+
+        const user = await User.findById(req.user.userId);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        await redisClient.setEx(cacheKey, 300, JSON.stringify(user.cart)); // cache for 5 min
+        res.status(200).json({ cart: user.cart, source: 'db' });
+    } catch (err) {
+        console.error('Get cart error:', err);
+        res.status(500).json({ message: 'Error fetching cart', error: err.message });
+    }
+});
+
+// ─── UPDATE CART (write-through) ─────────────────────────────────────────────
+app.put('/cart', authenticateToken, async (req, res) => {
+    const { cart } = req.body;
+    const cacheKey = `cart:${req.user.userId}`;
+
+    if (!Array.isArray(cart)) {
+        return res.status(400).json({ message: 'Cart must be an array.' });
+    }
+
+    try {
+        const user = await User.findByIdAndUpdate(
+            req.user.userId,
+            { cart },
+            { new: true }
+        );
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        await redisClient.setEx(cacheKey, 300, JSON.stringify(user.cart));
+        res.status(200).json({ message: 'Cart updated', cart: user.cart });
+    } catch (err) {
+        console.error('Update cart error:', err);
+        res.status(500).json({ message: 'Error updating cart', error: err.message });
+    }
+});
+//-----------------------redis end
 
 // ─── CHECKOUT (COD) ──────────────────────────────────────────────────────────
 app.post('/checkout', async (req, res) => {
@@ -230,7 +283,7 @@ app.post('/verify-payment', async (req, res) => {
 });
 
 
-const port = process.env.PORT || 5000;
+const port = process.env.PORT || 5001;
 if (require.main === module) {
     app.listen(port, () => console.log(`Server running on port ${port}`));
 }
