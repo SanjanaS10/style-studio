@@ -38,8 +38,11 @@ const userSchema = new mongoose.Schema({
     email: { type: String, unique: true, lowercase: true, trim: true },
     password: String,
     role: { type: String, enum: ['user', 'admin'], default: 'user' },
+    refreshToken: String,
     cart: [{ productId: String, name: String, price: String, quantity: Number }]
 });
+
+ 
 const User = mongoose.model('User', userSchema);
 
 const orderSchema = new mongoose.Schema({
@@ -147,17 +150,58 @@ app.post('/login', [
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
-       
-        const token = jwt.sign(
+       const accessToken = jwt.sign(
             { email: user.email, userId: user._id, role: user.role },
             process.env.JWT_SECRET,
-            { expiresIn: '1d' }
+            { expiresIn: '15m' }
         );
 
-        res.status(200).json({ message: 'Login successful', token, email: user.email });
+        const refreshToken = jwt.sign(
+            { userId: user._id },
+            process.env.JWT_REFRESH_SECRET,
+            { expiresIn: '7d' }
+        );
+
+        user.refreshToken = refreshToken;
+        await user.save();
+
+        res.status(200).json({
+            message: 'Login successful',
+            token: accessToken,
+            refreshToken,
+            email: user.email,
+        });
     } catch (err) {
         console.error('Login error:', err);
         res.status(500).json({ message: 'Error during login', error: err.message });
+    }
+});
+
+// ─── REFRESH TOKEN ────────────────────────────────────────────────────────────
+app.post('/refresh-token', async (req, res) => {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+        return res.status(401).json({ message: 'Refresh token required.' });
+    }
+
+    try {
+        const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+        const user = await User.findById(decoded.userId);
+
+        if (!user || user.refreshToken !== refreshToken) {
+            return res.status(403).json({ message: 'Invalid refresh token.' });
+        }
+
+        const newAccessToken = jwt.sign(
+            { email: user.email, userId: user._id, role: user.role },
+            process.env.JWT_SECRET,
+            { expiresIn: '15m' }
+        );
+
+        res.status(200).json({ token: newAccessToken });
+    } catch (err) {
+        return res.status(403).json({ message: 'Invalid or expired refresh token.' });
     }
 });
 //redis--------------------
@@ -316,6 +360,15 @@ app.get('/admin/orders', authenticateToken, requireRole('admin'), async (req, re
     } catch (err) {
         console.error('Get orders error:', err);
         res.status(500).json({ message: 'Error fetching orders', error: err.message });
+    }
+});
+// ─── LOGOUT ───────────────────────────────────────────────────────────────────
+app.post('/logout', authenticateToken, async (req, res) => {
+    try {
+        await User.findByIdAndUpdate(req.user.userId, { refreshToken: null });
+        res.status(200).json({ message: 'Logged out successfully' });
+    } catch (err) {
+        res.status(500).json({ message: 'Error logging out', error: err.message });
     }
 });
 // ─── CENTRALIZED ERROR HANDLER ────────────────────────────────────────────────

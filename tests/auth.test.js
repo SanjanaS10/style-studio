@@ -115,4 +115,60 @@ describe('POST /login', () => {
 
         expect(res.statusCode).toBe(401);
     });
+
+
+
+describe('Refresh token flow', () => {
+    let refreshToken;
+    let accessToken;
+
+    beforeAll(async () => {
+        await request(app)
+            .post('/signup')
+            .send({ name: 'Refresh Tester', email: 'refresh@example.com', password: 'password123' });
+
+        const loginRes = await request(app)
+            .post('/login')
+            .send({ email: 'refresh@example.com', password: 'password123' });
+
+        accessToken = loginRes.body.token;
+        refreshToken = loginRes.body.refreshToken;
+    });
+
+    it('issues both an access token and a refresh token on login', () => {
+        expect(accessToken).toBeDefined();
+        expect(refreshToken).toBeDefined();
+    });
+
+    it('issues a new access token given a valid refresh token', async () => {
+        const res = await request(app)
+            .post('/refresh-token')
+            .send({ refreshToken });
+
+        expect(res.statusCode).toBe(200);
+        expect(res.body.token).toBeDefined();
+    });
+
+    it('rejects an invalid refresh token', async () => {
+        const res = await request(app)
+            .post('/refresh-token')
+            .send({ refreshToken: 'not-a-real-token' });
+
+        expect(res.statusCode).toBe(403);
+    });
+
+    it('invalidates the refresh token on logout', async () => {
+        const logoutRes = await request(app)
+            .post('/logout')
+            .set('Authorization', `Bearer ${accessToken}`);
+
+        expect(logoutRes.statusCode).toBe(200);
+
+        const refreshRes = await request(app)
+            .post('/refresh-token')
+            .send({ refreshToken });
+
+        expect(refreshRes.statusCode).toBe(403);
+    });
+});
 });
