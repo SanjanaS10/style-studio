@@ -2,6 +2,9 @@
 
 A full-stack fashion e-commerce platform featuring secure authentication, integrated payments, Redis-backed caching, and an interactive 3D virtual try-on experience — built with the MERN stack and containerized with Docker.
 
+**Live demo:** [style-studio-kappa.vercel.app](https://style-studio-kappa.vercel.app)
+**Backend API:** [style-studio.onrender.com](https://style-studio.onrender.com)
+
 ## Features
 
 - **3D Virtual Try-On** — Interactive Three.js GLB model viewer enabling real-time outfit previews directly in the browser
@@ -18,13 +21,19 @@ A full-stack fashion e-commerce platform featuring secure authentication, integr
 **Frontend:** React.js, Three.js, CSS  
 **Backend:** Node.js, Express.js  
 **Database:** MongoDB Atlas (Mongoose)  
-**Caching:** Redis  
+**Caching:** Redis (Upstash)  
 **Auth:** JWT (access + refresh tokens), bcrypt  
 **Payments:** Razorpay API  
 **Validation:** express-validator  
 **Testing:** Jest, Supertest, mongodb-memory-server  
 **CI/CD:** GitHub Actions  
 **Containerization:** Docker, Docker Compose  
+**Deployment:** Vercel (frontend), Render (backend)
+
+## Performance Notes
+
+- **Caching:** Measured cart endpoint response time with and without Redis cache — first request (DB) ~490ms, subsequent cached requests consistently ~215ms (~2.3x faster), tested via Postman.
+- **Load testing:** Load tested the deployed API with `autocannon` at 10 concurrent connections for 10s — sustained ~34 req/sec, p50 latency 276ms, zero failed requests. Throughput was limited by free-tier hosting (single-process Node on Render's free instance) rather than an identified application bottleneck.
 
 ## Getting Started
 
@@ -80,12 +89,18 @@ A full-stack fashion e-commerce platform featuring secure authentication, integr
    npm run dev
    ```
 
+### Running Tests
+
+```bash
+npm run test:backend
+```
+
 ## Project Structure
 
 ```
 style-studio/
 ├── src/                        # React frontend
-├── public/                     # Static assets
+├── public/                     # Static assets + 3D models
 ├── tests/                      # Jest/Supertest test suites
 │   ├── auth.test.js
 │   ├── cart.test.js
