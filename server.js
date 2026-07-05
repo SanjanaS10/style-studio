@@ -179,6 +179,7 @@ app.post('/login', [
 
 // ─── REFRESH TOKEN ────────────────────────────────────────────────────────────
 app.post('/refresh-token', async (req, res) => {
+
     const { refreshToken } = req.body;
 
     if (!refreshToken) {
@@ -208,18 +209,23 @@ app.post('/refresh-token', async (req, res) => {
 // ─── GET CART (cache-first) ──────────────────────────────────────────────────
 app.get('/cart', authenticateToken, async (req, res) => {
     const cacheKey = `cart:${req.user.userId}`;
+    const start = Date.now();
 
     try {
         const cached = await redisClient.get(cacheKey);
         if (cached) {
-            return res.status(200).json({ cart: JSON.parse(cached), source: 'cache' });
+            const duration = Date.now() - start;
+            console.log(`[CART] Served from CACHE in ${duration}ms`);
+            return res.status(200).json({ cart: JSON.parse(cached), source: 'cache', durationMs: duration });
         }
 
         const user = await User.findById(req.user.userId);
         if (!user) return res.status(404).json({ message: 'User not found' });
 
-        await redisClient.setEx(cacheKey, 300, JSON.stringify(user.cart)); // cache for 5 min
-        res.status(200).json({ cart: user.cart, source: 'db' });
+        await redisClient.setEx(cacheKey, 300, JSON.stringify(user.cart));
+        const duration = Date.now() - start;
+        console.log(`[CART] Served from DB in ${duration}ms`);
+        res.status(200).json({ cart: user.cart, source: 'db', durationMs: duration });
     } catch (err) {
         console.error('Get cart error:', err);
         res.status(500).json({ message: 'Error fetching cart', error: err.message });
