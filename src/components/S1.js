@@ -85,10 +85,7 @@ const S1 = () => {
               Add to Cart
             </button>
 
-            {/* 3D Try-On Button */}
-            <button className="try1-on-btn">
-              <a href="/s1_3d.html">3D Model</a>
-            </button>
+      
 
             {/* Delivery Information */}
             <div className="delivery1-info">
